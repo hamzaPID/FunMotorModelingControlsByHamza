@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Virtual Quanser DC Motor</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #1f2933;
+      color: #e5e7eb;
+    }
+    .app {
+      display: flex;
+      height: 100vh;
+      max-height: 100vh;
+    }
+    .left-panel {
+      width: 260px;
+      padding: 10px 12px;
+      background: #111827;
+      border-right: 1px solid #374151;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    h2 {
+      font-size: 0.95rem;
+      margin: 0 0 6px;
+      font-weight: 600;
+    }
+    .group {
+      padding: 6px 8px 8px;
+      border-radius: 6px;
+      background: #020617;
+      border: 1px solid #374151;
+    }
+    .digital-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .digital {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+    .digital span.label {
+      margin-right: 6px;
+    }
+    .digital span.value {
+      display: inline-block;
+      min-width: 70px;
+      text-align: right;
+      padding: 2px 4px;
+      border-radius: 4px;
+      background: #020617;
+      color: #22c55e;
+      font-family: "SF Mono","Consolas","Courier New",monospace;
+      border: 1px solid #111827;
+    }
+    .controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      font-size: 0.8rem;
+    }
+    .controls-row label {
+      margin-right: 4px;
+    }
+    .controls-row input,
+    .controls-row select {
+      width: 90px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      border: 1px solid #4b5563;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 0.8rem;
+    }
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      background: #22c55e;
+      color: #020617;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    button.stop {
+      background: #ef4444;
+      color: #020617;
+    }
+    .right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 8px 10px;
+      gap: 8px;
+    }
+    .motor-and-label {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .motor-card {
+      background: #020617;
+      border: 1px solid #374151;
+      border-radius: 6px;
+      padding: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 180px;
+      height: 180px;
+    }
+    #motorCanvas {
+      width: 160px;
+      height: 160px;
+    }
+    .caption {
+      font-size: 0.8rem;
+      color: #9ca3af;
+    }
+    .plots {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .plot-card {
+      flex: 1;
+      background: #020617;
+      border: 1px solid #374151;
+      border-radius: 6px;
+      padding: 4px 6px;
+      display: flex;
+      flex-direction: column;
+    }
+    .plot-title {
+      font-size: 0.8rem;
+      margin: 0 0 2px;
+      color: #e5e7eb;
+    }
+    canvas.scope {
+      flex: 1;
+      width: 100%;
+    }
+    @media (max-width: 900px) {
+      .app {
+        flex-direction: column;
+        height: auto;
+      }
+      .left-panel {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+      .group {
+        flex: 1 1 160px;
+      }
+      .right-panel {
+        height: 70vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+      <!-- Digital Scopes -->
+      <div class="group">
+        <h2>Digital Scopes</h2>
+        <div class="digital-row">
+          <div class="digital">
+            <span class="label">Speed (rad/s)</span>
+            <span class="value" id="speedDisplay">0.000</span>
+          </div>
+          <div class="digital">
+            <span class="label">Current (A)</span>
+            <span class="value" id="currentDisplay">0.000</span>
+          </div>
+          <div class="digital">
+            <span class="label">Voltage (V)</span>
+            <span class="value" id="voltageDisplay">0.000</span>
+          </div>
+          <div class="digital">
+            <span class="label">R = V/I (Ω)</span>
+            <span class="value" id="resDisplay">0.000</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Signal Generator -->
+      <div class="group">
+        <h2>Signal Generator</h2>
+        <div class="controls-row">
+          <label for="waveform">Wave</label>
+          <select id="waveform">
+            <option value="step">DC (step)</option>
+            <option value="sine">Sine</option>
+            <option value="square">Square</option>
+          </select>
+        </div>
+        <div class="controls-row">
+          <label for="amplitude">Amplitude</label>
+          <input type="number" id="amplitude" value="5" step="0.1">
+        </div>
+        <div class="controls-row">
+          <label for="frequency">Frequency</label>
+          <input type="number" id="frequency" value="0.5" step="0.1">
+        </div>
+        <div class="controls-row">
+          <label for="offset">Offset</label>
+          <input type="number" id="offset" value="0" step="0.1">
+        </div>
+        <button id="startStopBtn">Start</button>
+      </div>
+
+      <!-- Model Parameters -->
+      <div class="group">
+        <h2>Model Parameters</h2>
+        <div class="controls-row">
+          <label for="K">K</label>
+          <input type="number" id="K" value="5" step="0.1">
+        </div>
+        <div class="controls-row">
+          <label for="tau">τ</label>
+          <input type="number" id="tau" value="0.2" step="0.01">
+        </div>
+        <div class="controls-row">
+          <label for="R">R (for I)</label>
+          <input type="number" id="R" value="2" step="0.1">
+        </div>
+        <div class="controls-row">
+          <label for="km">k<sub>m</sub> (for I)</label>
+          <input type="number" id="km" value="0.05" step="0.01">
+        </div>
+      </div>
+
+      <!-- Motor Tools -->
+      <div class="group">
+        <h2>Motor Tools</h2>
+        <div class="controls-row">
+          <label for="stall">Grasp Motor (ω = 0)</label>
+          <input type="checkbox" id="stall">
+        </div>
+        <p style="font-size:0.75rem;color:#9ca3af;margin:4px 0 0;">
+          Use this like holding the inertial disk in the lab to do the
+          resistance experiment (Table 2.5): set a DC voltage and read I and R.
+        </p>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+      <div class="motor-and-label">
+        <div class="motor-card">
+          <canvas id="motorCanvas" width="160" height="160"></canvas>
+        </div>
+        <div>
+          <h2>Virtual Motor</h2>
+          <p class="caption">
+            Disk angle integrates the simulated speed.  
+            When “Grasp Motor” is on, ω is forced to zero and the disk stops,
+            mimicking the stalled-shaft experiment on the real Quanser kit.
+          </p>
+        </div>
+      </div>
+
+      <div class="plots">
+        <div class="plot-card">
+          <div class="plot-title">Speed (rad/s)</div>
+          <canvas id="speedScope" class="scope"></canvas>
+        </div>
+        <div class="plot-card">
+          <div class="plot-title">Voltage (V)</div>
+          <canvas id="voltageScope" class="scope"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---- DOM elements ----
+    const speedDisplay   = document.getElementById("speedDisplay");
+    const currentDisplay = document.getElementById("currentDisplay");
+    const voltageDisplay = document.getElementById("voltageDisplay");
+    const resDisplay     = document.getElementById("resDisplay");
+
+    const waveformEl  = document.getElementById("waveform");
+    const ampEl       = document.getElementById("amplitude");
+    const freqEl      = document.getElementById("frequency");
+    const offsetEl    = document.getElementById("offset");
+    const startStopBtn= document.getElementById("startStopBtn");
+
+    const KEl   = document.getElementById("K");
+    const tauEl = document.getElementById("tau");
+    const REl   = document.getElementById("R");
+    const kmEl  = document.getElementById("km");
+
+    const stallEl = document.getElementById("stall");
+
+    const motorCanvas   = document.getElementById("motorCanvas");
+    const motorCtx      = motorCanvas.getContext("2d");
+    const speedScope    = document.getElementById("speedScope");
+    const speedScopeCtx = speedScope.getContext("2d");
+    const voltScope     = document.getElementById("voltageScope");
+    const voltScopeCtx  = voltScope.getContext("2d");
+
+    // ---- Simulation state ----
+    let running = false;
+    let lastTime = null;
+    let simTime = 0;
+    let omega = 0;    // rad/s
+    let angle = 0;    // rad
+
+    const timeWindow = 8; // seconds of history in scopes
+    let speedHistory = [];
+    let voltHistory  = [];
+
+    // ---- Helper: numeric value with fallback ----
+    function num(el, fallback) {
+      const v = parseFloat(el.value);
+      return isFinite(v) ? v : fallback;
+    }
+
+    // ---- Input signal generator ----
+    function vInput(t) {
+      const A  = num(ampEl, 0);
+      const f  = num(freqEl, 0);
+      const dc = num(offsetEl, 0);
+      const wf = waveformEl.value;
+
+      if (wf === "step") {
+        return dc + A;          // DC
+      } else if (wf === "sine") {
+        return dc + A * Math.sin(2 * Math.PI * f * t);
+      } else if (wf === "square") {
+        if (f <= 0) return dc + A;
+        const phase = t * f;
+        const sgn = (phase - Math.floor(phase)) < 0.5 ? 1 : -1;
+        return dc + A * sgn;
+      }
+      return 0;
+    }
+
+    // ---- Simulation step ----
+    function step(dt) {
+      const K   = num(KEl, 1);
+      const tau = Math.max(num(tauEl, 0.1), 1e-4); // avoid 0
+      const R   = Math.max(num(REl, 1), 1e-4);
+      const km  = num(kmEl, 0.05);
+      const stall = stallEl.checked;
+
+      const V = vInput(simTime);
+      let I;
+
+      if (stall) {
+        // Stalled shaft: ω = 0, angle frozen. Use V = R I (no back-EMF)
+        omega = 0;
+        I = V / R;
+        // do not integrate angle (disk visually stops)
+      } else {
+        // Free-running first-order motor model
+        const domega = (K * V - omega) / tau;
+        omega += domega * dt;
+        angle += omega * dt;
+        I = (V - km * omega) / R;
+      }
+
+      // update histories
+      speedHistory.push({ t: simTime, y: omega });
+      voltHistory.push({ t: simTime, y: V });
+
+      const tMin = simTime - timeWindow;
+      speedHistory = speedHistory.filter(p => p.t >= tMin);
+      voltHistory  = voltHistory.filter(p => p.t >= tMin);
+
+      // update digital displays
+      speedDisplay.textContent   = omega.toFixed(3);
+      currentDisplay.textContent = I.toFixed(3);
+      voltageDisplay.textContent = V.toFixed(3);
+
+      const Rest = Math.abs(I) > 1e-6 ? V / I : 0;
+      resDisplay.textContent = (Math.abs(I) > 1e-6 && isFinite(Rest))
+        ? Rest.toFixed(3)
+        : "∞";
+    }
+
+    // ---- Drawing motor ----
+    function drawMotor() {
+      const ctx = motorCtx;
+      const w = motorCanvas.width;
+      const h = motorCanvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const cx = w / 2;
+      const cy = h / 2;
+      const rOuter = Math.min(w, h) * 0.45;
+      const rInner = rOuter * 0.55;
+
+      // outer stator
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.strokeStyle = "#4b5563";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, rOuter, 0, 2 * Math.PI);
+      ctx.stroke();
+
+      // rotor disk
+      ctx.fillStyle = "#111827";
+      ctx.beginPath();
+      ctx.arc(0, 0, rInner, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = "#9ca3af";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // rotate by angle
+      ctx.rotate(angle);
+
+      // rotor bar
+      ctx.strokeStyle = "#22c55e";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(rInner * 0.9, 0);
+      ctx.stroke();
+
+      // small hub
+      ctx.fillStyle = "#e5e7eb";
+      ctx.beginPath();
+      ctx.arc(0, 0, rInner * 0.12, 0, 2 * Math.PI);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // ---- Drawing scopes ----
+    function drawScope(canvas, ctx, history, color) {
+      const rect = canvas.getBoundingClientRect();
+      if (canvas.width !== rect.width || canvas.height !== rect.height) {
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      }
+
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const marginLeft = 40;
+      const marginRight = 10;
+      const marginTop = 10;
+      const marginBottom = 18;
+
+      const plotW = w - marginLeft - marginRight;
+      const plotH = h - marginTop - marginBottom;
+
+      // axes
+      ctx.strokeStyle = "#4b5563";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(marginLeft, marginTop);
+      ctx.lineTo(marginLeft, h - marginBottom);
+      ctx.lineTo(w - marginRight, h - marginBottom);
+      ctx.stroke();
+
+      if (history.length < 2) return;
+
+      const tMin = history[0].t;
+      const tMax = history[history.length - 1].t;
+      const dt = Math.max(tMax - tMin, 1e-3);
+
+      let yMin = Infinity;
+      let yMax = -Infinity;
+      for (const p of history) {
+        if (p.y < yMin) yMin = p.y;
+        if (p.y > yMax) yMax = p.y;
+      }
+      if (!isFinite(yMin) || !isFinite(yMax)) return;
+      if (Math.abs(yMax - yMin) < 1e-3) {
+        yMax = yMin + 1;
+      }
+
+      ctx.fillStyle = "#9ca3af";
+      ctx.font = "10px system-ui";
+
+      const nXTicks = 4;
+      for (let i = 0; i <= nXTicks; i++) {
+        const f = i / nXTicks;
+        const t = tMin + f * dt;
+        const x = marginLeft + f * plotW;
+        ctx.beginPath();
+        ctx.moveTo(x, h - marginBottom);
+        ctx.lineTo(x, h - marginBottom + 4);
+        ctx.stroke();
+        ctx.fillText((t - tMin).toFixed(1), x - 8, h - 4);
+      }
+
+      const nYTicks = 4;
+      for (let i = 0; i <= nYTicks; i++) {
+        const f = i / nYTicks;
+        const yVal = yMin + f * (yMax - yMin);
+        const y = h - marginBottom - f * plotH;
+        ctx.beginPath();
+        ctx.moveTo(marginLeft - 4, y);
+        ctx.lineTo(marginLeft, y);
+        ctx.stroke();
+        ctx.fillText(yVal.toFixed(1), 4, y + 3);
+      }
+
+      // curve
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      history.forEach((p, idx) => {
+        const x = marginLeft + ((p.t - tMin) / dt) * plotW;
+        const yNorm = (p.y - yMin) / (yMax - yMin);
+        const y = h - marginBottom - yNorm * plotH;
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    // ---- Main animation loop ----
+    function loop(timestamp) {
+      if (lastTime == null) lastTime = timestamp;
+      const dt = (timestamp - lastTime) / 1000;
+      lastTime = timestamp;
+
+      if (running) {
+        const maxStep = 0.01;
+        let remaining = dt;
+        while (remaining > 0) {
+          const stepDt = Math.min(remaining, maxStep);
+          step(stepDt);
+          simTime += stepDt;
+          remaining -= stepDt;
+        }
+      }
+
+      drawMotor();
+      drawScope(speedScope, speedScopeCtx, speedHistory, "#22c55e");
+      drawScope(voltScope,  voltScopeCtx,  voltHistory,  "#60a5fa");
+
+      requestAnimationFrame(loop);
+    }
+
+    // ---- Event handlers ----
+    startStopBtn.addEventListener("click", () => {
+      running = !running;
+      startStopBtn.textContent = running ? "Stop" : "Start";
+      startStopBtn.classList.toggle("stop", running);
+      if (running && speedHistory.length === 0) {
+        simTime = 0;
+        omega = 0;
+        angle = 0;
+      }
+    });
+
+    // start animation
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
